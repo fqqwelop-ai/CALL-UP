@@ -1,10 +1,5 @@
 [build]
-builder = "nixpacks"
+builder = "railpack"
 
-[[services]]
-name = "web"
-startCommand = "gunicorn web:app --bind 0.0.0.0:$PORT"
-
-[[services]]
-name = "bot"
+[deploy]
 startCommand = "python bot.py"
