@@ -16,20 +16,9 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 
 class CallUpModal(discord.ui.Modal, title="📞 CALL UP"):
-    target_id = discord.ui.TextInput(
-        label="ID الشخص المُبلَّغ عنه",
-        placeholder="أدخل الـ ID...",
-        max_length=20
-    )
-    reason = discord.ui.TextInput(
-        label="السبب",
-        style=discord.TextStyle.paragraph,
-        placeholder="اكتب السبب..."
-    )
-    evidence = discord.ui.TextInput(
-        label="الدليل",
-        placeholder="رابط الدليل..."
-    )
+    target_id = discord.ui.TextInput(label="ID الشخص", placeholder="أدخل الـ ID...", max_length=20)
+    reason    = discord.ui.TextInput(label="السبب", style=discord.TextStyle.paragraph, placeholder="السبب...")
+    evidence  = discord.ui.TextInput(label="الدليل", placeholder="رابط الدليل...")
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -43,7 +32,7 @@ class CallUpModal(discord.ui.Modal, title="📞 CALL UP"):
         try:
             member = guild.get_member(int(tid)) or await guild.fetch_member(int(tid))
         except Exception:
-            await interaction.followup.send("❌ العضو مو موجود في السيرفر!", ephemeral=True)
+            await interaction.followup.send("❌ العضو مو موجود!", ephemeral=True)
             return
 
         wl_role  = guild.get_role(WHITELIST_ROLE_ID)
@@ -76,21 +65,14 @@ class CallUpModal(discord.ui.Modal, title="📞 CALL UP"):
                 "footer": {"text": "CALL UP System"}
             }]})
 
-        await interaction.followup.send(
-            "✅ تم تقديم الطلب!\n" + "\n".join(actions),
-            ephemeral=True
-        )
+        await interaction.followup.send("✅ تم!\n" + "\n".join(actions), ephemeral=True)
 
 
 class CallUpView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(
-        label="📞 CALL UP",
-        style=discord.ButtonStyle.danger,
-        custom_id="persistent_callup_v3"
-    )
+    @discord.ui.button(label="📞 CALL UP", style=discord.ButtonStyle.danger, custom_id="callup_v4")
     async def callup_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CallUpModal())
 
@@ -98,10 +80,10 @@ class CallUpView(discord.ui.View):
 @bot.event
 async def on_ready():
     try:
-        print(f"[READY] {bot.user} | Guild: {GUILD_ID}")
+        print(f"[READY] {bot.user}")
         bot.add_view(CallUpView())
         await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-        print("[READY] Done")
+        print("[READY] Synced")
     except Exception as e:
         print(f"[ERROR] {e}")
         traceback.print_exc()
@@ -110,9 +92,7 @@ async def on_ready():
 @bot.tree.command(name="send_callup", description="أرسل embed CALL UP", guild=discord.Object(id=GUILD_ID))
 @app_commands.checks.has_permissions(administrator=True)
 async def send_callup(interaction: discord.Interaction):
-    # نرد بشكل سريع ثم نرسل الرسالة عبر channel.send
-    await interaction.response.send_message("✅ تم!", ephemeral=True, delete_after=1)
-
+    # نرسل الرسالة عبر REST API مباشرة
     embed = discord.Embed(
         title="📞 CALL UP",
         description=(
@@ -126,7 +106,22 @@ async def send_callup(interaction: discord.Interaction):
     embed.set_footer(text="CALL UP System")
 
     view = CallUpView()
-    await interaction.channel.send(embed=embed, view=view)
+
+    # نرسل عبر channel مباشرة
+    msg = await interaction.channel.send(embed=embed, view=view)
+    print(f"[SENT] Message ID: {msg.id} | Components: {msg.components}")
+
+    await interaction.response.send_message("✅ تم إرسال الـ Embed!", ephemeral=True)
+
+
+# استقبال أي interaction يدوياً كـ backup
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    if interaction.type == discord.InteractionType.component:
+        cid = interaction.data.get("custom_id", "")
+        print(f"[INTERACTION] custom_id={cid}")
+        if cid == "callup_v4":
+            await interaction.response.send_modal(CallUpModal())
 
 
 bot.run(TOKEN)
