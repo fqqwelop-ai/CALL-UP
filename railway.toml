@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[[services]]
+name = "web"
+startCommand = "gunicorn web:app --bind 0.0.0.0:$PORT"
+
+[[services]]
+name = "bot"
+startCommand = "python bot.py"
