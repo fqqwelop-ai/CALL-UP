@@ -72,7 +72,7 @@ class CallUpView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="📞 CALL UP", style=discord.ButtonStyle.danger, custom_id="callup_v4")
+    @discord.ui.button(label="📞 CALL UP", style=discord.ButtonStyle.danger, custom_id="callup_v5")
     async def callup_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CallUpModal())
 
@@ -92,36 +92,44 @@ async def on_ready():
 @bot.tree.command(name="send_callup", description="أرسل embed CALL UP", guild=discord.Object(id=GUILD_ID))
 @app_commands.checks.has_permissions(administrator=True)
 async def send_callup(interaction: discord.Interaction):
-    # نرسل الرسالة عبر REST API مباشرة
-    embed = discord.Embed(
-        title="📞 CALL UP",
-        description=(
-            "اضغط على الزر أدناه لتقديم طلب **CALL UP**\n\n"
-            "🎯 **ID** الشخص المُبلَّغ عنه\n"
-            "📋 **السبب**\n"
-            "🔗 **الدليل**"
-        ),
-        color=0xe63946
-    )
-    embed.set_footer(text="CALL UP System")
+    await interaction.response.defer(ephemeral=True)
 
-    view = CallUpView()
+    # نرسل عبر REST API مباشرة
+    headers = {
+        "Authorization": f"Bot {TOKEN}",
+        "Content-Type": "application/json"
+    }
 
-    # نرسل عبر channel مباشرة
-    msg = await interaction.channel.send(embed=embed, view=view)
-    print(f"[SENT] Message ID: {msg.id} | Components: {msg.components}")
+    payload = {
+        "embeds": [{
+            "title": "📞 CALL UP",
+            "description": (
+                "اضغط على الزر أدناه لتقديم طلب **CALL UP**\n\n"
+                "🎯 **ID** الشخص المُبلَّغ عنه\n"
+                "📋 **السبب**\n"
+                "🔗 **الدليل**"
+            ),
+            "color": 0xe63946,
+            "footer": {"text": "CALL UP System"}
+        }],
+        "components": [{
+            "type": 1,
+            "components": [{
+                "type": 2,
+                "style": 4,
+                "label": "📞 CALL UP",
+                "custom_id": "callup_v5"
+            }]
+        }]
+    }
 
-    await interaction.response.send_message("✅ تم إرسال الـ Embed!", ephemeral=True)
+    async with aiohttp.ClientSession() as session:
+        url = f"https://discord.com/api/v10/channels/{interaction.channel_id}/messages"
+        async with session.post(url, json=payload, headers=headers) as resp:
+            result = await resp.json()
+            print(f"[SENT] Status: {resp.status} | Response: {result}")
 
-
-# استقبال أي interaction يدوياً كـ backup
-@bot.event
-async def on_interaction(interaction: discord.Interaction):
-    if interaction.type == discord.InteractionType.component:
-        cid = interaction.data.get("custom_id", "")
-        print(f"[INTERACTION] custom_id={cid}")
-        if cid == "callup_v4":
-            await interaction.response.send_modal(CallUpModal())
+    await interaction.followup.send("✅ تم إرسال الـ Embed!", ephemeral=True)
 
 
 bot.run(TOKEN)
