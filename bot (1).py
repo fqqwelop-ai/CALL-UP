@@ -89,7 +89,7 @@ class CallUpView(discord.ui.View):
     @discord.ui.button(
         label="📞 CALL UP",
         style=discord.ButtonStyle.danger,
-        custom_id="persistent_callup_btn"
+        custom_id="persistent_callup_v3"
     )
     async def callup_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CallUpModal())
@@ -100,9 +100,8 @@ async def on_ready():
     try:
         print(f"[READY] {bot.user} | Guild: {GUILD_ID}")
         bot.add_view(CallUpView())
-        print("[READY] View added")
         await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-        print("[READY] Commands synced")
+        print("[READY] Done")
     except Exception as e:
         print(f"[ERROR] {e}")
         traceback.print_exc()
@@ -111,7 +110,9 @@ async def on_ready():
 @bot.tree.command(name="send_callup", description="أرسل embed CALL UP", guild=discord.Object(id=GUILD_ID))
 @app_commands.checks.has_permissions(administrator=True)
 async def send_callup(interaction: discord.Interaction):
-    view = CallUpView()
+    # نرد بشكل سريع ثم نرسل الرسالة عبر channel.send
+    await interaction.response.send_message("✅ تم!", ephemeral=True, delete_after=1)
+
     embed = discord.Embed(
         title="📞 CALL UP",
         description=(
@@ -123,7 +124,9 @@ async def send_callup(interaction: discord.Interaction):
         color=0xe63946
     )
     embed.set_footer(text="CALL UP System")
-    await interaction.response.send_message(embed=embed, view=view)
+
+    view = CallUpView()
+    await interaction.channel.send(embed=embed, view=view)
 
 
 bot.run(TOKEN)
