@@ -1,143 +1,110 @@
 import discord
-from discord.ext import commands
-from discord import app_commands
 import aiohttp
 import os
 
-# ============================
-# إعدادات
-# ============================
 TOKEN             = os.getenv("DISCORD_TOKEN")
 GUILD_ID          = int(os.getenv("GUILD_ID", "0"))
 WHITELIST_ROLE_ID = 1443294946089242727
 CALLUP_ROLE_ID    = 1502830142496575569
 LOG_WEBHOOK       = "https://discord.com/api/webhooks/1502831258189955285/t9uZgbrzcjFhqy9AWjZ58_K_OLHgU7Q7gBfDLLc9kWL1G2elP7ZzIR1QT964BMwwkIZ6"
 
-# ============================
-# إعداد البوت
-# ============================
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
-
-bot = commands.Bot(command_prefix="!", intents=intents)
+intents = discord.Intents.all()
+client  = discord.Client(intents=intents)
+tree    = discord.app_commands.CommandTree(client)
 
 
 # ============================
-# Modal (النموذج)
+# Modal
 # ============================
-class CallUpModal(discord.ui.Modal, title="📞 CALL UP Request"):
-    target_id = discord.ui.TextInput(
-        label="ID الشخص المُبلَّغ عنه",
-        placeholder="أدخل الـ ID هنا...",
-        max_length=20,
-        required=True
-    )
-    reason = discord.ui.TextInput(
-        label="السبب",
-        placeholder="اكتب سبب الاستدعاء بالتفصيل...",
-        style=discord.TextStyle.paragraph,
-        required=True
-    )
-    evidence = discord.ui.TextInput(
-        label="الدليل",
-        placeholder="رابط الصورة أو الفيديو أو السكرين شوت...",
-        required=True
-    )
+class CallUpModal(discord.ui.Modal, title="📞 CALL UP"):
+    target_id = discord.ui.TextInput(label="ID الشخص المُبلَّغ عنه", placeholder="أدخل الـ ID...", max_length=20)
+    reason    = discord.ui.TextInput(label="السبب", style=discord.TextStyle.paragraph, placeholder="اكتب السبب...")
+    evidence  = discord.ui.TextInput(label="الدليل", placeholder="رابط الدليل...")
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        guild     = interaction.guild
-        target_id = self.target_id.value.strip()
-        reason    = self.reason.value.strip()
-        evidence  = self.evidence.value.strip()
+        tid = self.target_id.value.strip()
 
-        if not target_id.isdigit():
+        if not tid.isdigit():
             await interaction.followup.send("❌ الـ ID غير صحيح!", ephemeral=True)
             return
 
+        guild = interaction.guild
         try:
-            member = guild.get_member(int(target_id)) or await guild.fetch_member(int(target_id))
+            member = guild.get_member(int(tid)) or await guild.fetch_member(int(tid))
         except Exception:
-            await interaction.followup.send("❌ ما قدرت أجد هذا العضو في السيرفر!", ephemeral=True)
+            await interaction.followup.send("❌ العضو مو موجود في السيرفر!", ephemeral=True)
             return
 
-        whitelist_role = guild.get_role(WHITELIST_ROLE_ID)
-        callup_role    = guild.get_role(CALLUP_ROLE_ID)
-        actions        = []
+        wl_role  = guild.get_role(WHITELIST_ROLE_ID)
+        cup_role = guild.get_role(CALLUP_ROLE_ID)
+        actions  = []
 
-        if whitelist_role and whitelist_role in member.roles:
-            await member.remove_roles(whitelist_role, reason="CALL UP submitted")
-            actions.append("✅ شُيل منه رول WHITELIST")
+        if wl_role and wl_role in member.roles:
+            await member.remove_roles(wl_role)
+            actions.append("✅ شُيل رول WHITELIST")
         else:
-            actions.append("⚠️ لم يكن يملك رول WHITELIST")
+            actions.append("⚠️ لم يكن يملك WHITELIST")
 
-        if callup_role and callup_role not in member.roles:
-            await member.add_roles(callup_role, reason="CALL UP submitted")
+        if cup_role and cup_role not in member.roles:
+            await member.add_roles(cup_role)
             actions.append("✅ أُعطي رول CALL UP")
         else:
-            actions.append("⚠️ كان يملك رول CALL UP مسبقاً")
+            actions.append("⚠️ كان يملك CALL UP مسبقاً")
 
-        async with aiohttp.ClientSession() as session:
-            log_embed = {
-                "embeds": [{
-                    "title": "📞 طلب CALL UP جديد",
-                    "color": 0xe63946,
-                    "fields": [
-                        {"name": "👤 مقدم الطلب",       "value": f"{interaction.user.mention} (`{interaction.user.id}`)", "inline": False},
-                        {"name": "🎯 ID المُبلَّغ عنه",  "value": f"{member.mention} (`{target_id}`)",                   "inline": False},
-                        {"name": "📋 السبب",             "value": reason,                                                 "inline": False},
-                        {"name": "🔗 الدليل",            "value": evidence,                                               "inline": False},
-                        {"name": "⚙️ الإجراءات",         "value": "\n".join(actions),                                    "inline": False},
-                    ],
-                    "footer": {"text": "CALL UP System"}
-                }]
-            }
-            await session.post(LOG_WEBHOOK, json=log_embed)
+        async with aiohttp.ClientSession() as s:
+            await s.post(LOG_WEBHOOK, json={"embeds": [{
+                "title": "📞 طلب CALL UP جديد",
+                "color": 0xe63946,
+                "fields": [
+                    {"name": "👤 مقدم الطلب",      "value": f"{interaction.user.mention} (`{interaction.user.id}`)", "inline": False},
+                    {"name": "🎯 ID المُبلَّغ عنه", "value": f"{member.mention} (`{tid}`)",                          "inline": False},
+                    {"name": "📋 السبب",            "value": self.reason.value,                                       "inline": False},
+                    {"name": "🔗 الدليل",           "value": self.evidence.value,                                     "inline": False},
+                    {"name": "⚙️ الإجراءات",        "value": "\n".join(actions),                                     "inline": False},
+                ],
+                "footer": {"text": "CALL UP System"}
+            }]})
 
-        await interaction.followup.send(
-            "✅ تم تقديم طلب CALL UP بنجاح!\n" + "\n".join(actions),
-            ephemeral=True
-        )
+        await interaction.followup.send("✅ تم تقديم الطلب!\n" + "\n".join(actions), ephemeral=True)
 
 
 # ============================
-# View مع الزر
+# View
 # ============================
 class CallUpView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="📞 CALL UP", style=discord.ButtonStyle.danger, custom_id="callup_button")
-    async def callup_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="📞 CALL UP", style=discord.ButtonStyle.danger, custom_id="callup_btn")
+    async def btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CallUpModal())
 
 
 # ============================
-# on_ready
+# Events
 # ============================
-@bot.event
+@client.event
 async def on_ready():
-    print(f"✅ البوت شغال كـ {bot.user}")
-    bot.add_view(CallUpView())
-    guild = discord.Object(id=GUILD_ID)
-    bot.tree.copy_global_to(guild=guild)
-    synced = await bot.tree.sync(guild=guild)
-    print(f"🔄 تمت مزامنة {len(synced)} أمر للسيرفر")
+    print(f"✅ Bot ready: {client.user}")
+    client.add_view(CallUpView())
+    guild_obj = discord.Object(id=GUILD_ID)
+    tree.copy_global_to(guild=guild_obj)
+    await tree.sync(guild=guild_obj)
+    print(f"✅ Commands synced to guild {GUILD_ID}")
 
 
 # ============================
-# أمر: إرسال Embed مع زر CALL UP
+# Commands
 # ============================
-@bot.tree.command(name="send_callup", description="ترسل embed زر CALL UP في الروم")
-@app_commands.checks.has_permissions(administrator=True)
+@tree.command(name="send_callup", description="أرسل embed CALL UP")
+@discord.app_commands.checks.has_permissions(administrator=True)
 async def send_callup(interaction: discord.Interaction):
     embed = discord.Embed(
         title="📞 CALL UP",
         description=(
             "اضغط على الزر أدناه لتقديم طلب **CALL UP**\n\n"
-            "سيتم فتح نموذج تملأ فيه:\n"
             "🎯 **ID** الشخص المُبلَّغ عنه\n"
             "📋 **السبب**\n"
             "🔗 **الدليل**"
@@ -145,11 +112,7 @@ async def send_callup(interaction: discord.Interaction):
         color=0xe63946
     )
     embed.set_footer(text="CALL UP System")
-
     await interaction.response.send_message(embed=embed, view=CallUpView())
 
 
-# ============================
-# تشغيل
-# ============================
-bot.run(TOKEN)
+client.run(TOKEN)
